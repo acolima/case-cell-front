@@ -1,11 +1,23 @@
 import { Container, Grid } from "@mui/material";
-import { useState } from "react";
-import { products } from "../../mocks/products";
+import { useEffect, useState } from "react";
 import Filters from "./filters";
 import ProductCard from "./productCard";
+import { getProducts } from "../../services/productService";
+import type { Product } from "../../domain/product";
 
 export default function Catalog() {
   const [selectedBrand, setSelectedBrand] = useState("Todos");
+  const [products, setProducts] = useState<Product[]>([]);
+
+  async function fetchProducts() {
+    const products = await getProducts();
+
+    setProducts(products);
+  }
+
+  useEffect(() => {
+    fetchProducts();
+  }, []);
 
   const filteredProducts =
     selectedBrand === "Todos"
