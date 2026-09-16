@@ -4,5 +4,6 @@ export const styles = {
     color: "white",
     py: 5,
     textAlign: "center",
+    marginTop: "110px",
   },
 };
