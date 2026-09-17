@@ -1,75 +1,77 @@
-# React + TypeScript + Vite
+# CaseCellShop
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Loja virtual simples e objetiva para vendas de capinhas de celular.
 
-Currently, two official plugins are available:
+## Tecnologias
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+<p>
+  <img src='https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB' alt="React" />
+  <img src='https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white' alt="TypeScript" />
+  <img src='https://img.shields.io/badge/Material%20UI-007FFF?style=for-the-badge&logo=mui&logoColor=white' alt="MaterialUI"/>
+  <img src='https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E' alt="Vite"/>
+  <img src='https://img.shields.io/badge/axios%20-%2320232a.svg?&style=for-the-badge&color=informational' alt="Axios">
+</p>
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Como rodar
+1. Clone o repositório
 
 ```
+git clone git@github.com:acolima/case-cell-front.git
+```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+2. Vá até a pasta do projeto
 
 ```
+ cd case-cell-front
+```
+
+3. Instale as dependências
+
+```
+npm install
+```
+4. Crie um arquivo `.env` na raiz do projeto (veja `.env.example`) com a URL da sua API
+
+```
+VITE_API_URL=
+```
+
+5. Rode o projeto com
+
+```
+npm run dev
+```
+
+6. Acesse `http://localhost:5173` no seu navegador
+
+## Decisões Técnicas
+- Vite para configurar o projeto: escolhido pelo tempo de build rápido e por trazer um ambiente de desenvolvimento mais moderno e leve.
+- Material UI (MUI): oferece componentes com design limpo e acessíveis, afim de acelerar o desenvolvimento da interface.
+- Gerenciamento de Estado do Carrinho: são utilizados a Context API juntamente com o localStorage para persistir as informações.
+- Idempotência: implementado no momento do checkout para evitar cobranças duplicadas.
+
+## Limitações 
+- Autenticação: o projeto ainda não conta com um sistema de cadastro e autenticação de usuários, sendo gerenciado atualmente através de um clientId aleatório e salvo no localStorage.
+- Pagamento: o sistema não conta com pagamentos reais, apenas simulados, não processando transações financeiras reais.
+
+## Próximos Passos
+[ ] Implementar testes unitários para os componentes React e Contextos utilizando Vitest e React Testing Library.
+
+[ ] Criar testes E2E com Cypress simulando a jornada completa de compra.
+
+[ ] Desenvolver uma tela de cadastro de usuários.
+
+[ ] Desenvolver uma tela de perfil do usuário, exibindo o histórico de pedidos.
+
+## Sobre mim
+
+<img src='https://avatars.githubusercontent.com/acolima' width='150px'/>
+
+<p>
+  <a href='https://www.linkedin.com/in/ana-caroline-oliveira-lima/'>
+    <img src='https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white' alt='LinkedIn' />
+  </a>
+  <a href='mailto:acolima@gmail.com'>
+    <img src='https://img.shields.io/badge/Gmail-D14836?style=for-the-badge&logo=gmail&logoColor=white' alt='Gmail' />
+  </a>
+</p>
