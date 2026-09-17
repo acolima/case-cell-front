@@ -4,17 +4,21 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from "react";
 import type { CartItem, Reservation } from "../domain/reservation";
 import type { Product } from "../domain/product";
+import type { Order } from "../domain/order";
 import {
   getCart,
   reserveProduct,
   cancelReservation,
   type CartAction,
 } from "../services/cartService";
+import { checkoutOrder, type CheckoutOptions } from "../services/orderService";
 import { getClientId } from "../utils/clientId";
+import { generateIdempotencyKey } from "../utils/idempotency";
 
 interface CartNotification {
   open: boolean;
@@ -28,12 +32,17 @@ interface CartContextData {
   totalPrice: number;
   isCartOpen: boolean;
   isLoading: boolean;
+  isCheckingOut: boolean;
+  completedOrder: Order | null;
+  failedOrder: { message: string } | null;
   catalogRefreshKey: number;
   orderExpiresAt: string | undefined;
+  currentIdempotencyKey: string | null;
   notification: CartNotification;
   openCart: () => void;
   closeCart: () => void;
   closeNotification: () => void;
+  clearOrder: () => void;
   addToCart: (product: Product, quantity?: number) => Promise<boolean>;
   updateItemQuantity: (
     productId: number,
@@ -41,6 +50,9 @@ interface CartContextData {
     action?: CartAction,
   ) => Promise<boolean>;
   removeFromCart: (reservationId: string) => Promise<void>;
+  finalizeOrder: (
+    options?: Omit<CheckoutOptions, "idempotencyKey">,
+  ) => Promise<Order | null>;
   handleOrderExpired: () => Promise<void>;
   isProductReserved: (productId: number) => boolean;
   triggerCatalogRefresh: () => void;
@@ -62,7 +74,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [failedOrder, setFailedOrder] = useState<{ message: string }>({
+    message: "",
+  });
   const [catalogRefreshKey, setCatalogRefreshKey] = useState(0);
+  const [currentIdempotencyKey, setCurrentIdempotencyKey] = useState<
+    string | null
+  >(null);
   const [notification, setNotification] = useState<CartNotification>({
     open: false,
     message: "",
@@ -70,6 +90,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
   });
 
   const clientId = getClientId();
+  const idempotencyKeyRef = useRef<string | null>(null);
+
+  const resetIdempotencyKey = useCallback(() => {
+    idempotencyKeyRef.current = null;
+    setCurrentIdempotencyKey(null);
+  }, []);
 
   const triggerCatalogRefresh = useCallback(() => {
     setCatalogRefreshKey((prev) => prev + 1);
@@ -95,19 +121,12 @@ export function CartProvider({ children }: { children: ReactNode }) {
                   item.reservation.productId === res.productId,
               );
 
-              return {
-                reservation: res,
-                product: existing?.product ?? {
-                  id: res.productId,
-                  name: `Capinha #${res.productId}`,
-                  model: "Smartphone",
-                  brand: "Universal",
-                  price: 39.9,
-                  rating: 5,
-                  reviews: 1,
-                  color: "#f3e5f5",
-                },
-              };
+              if (existing) {
+                return {
+                  reservation: res,
+                  product: existing.product,
+                };
+              }
             },
           );
 
@@ -134,6 +153,11 @@ export function CartProvider({ children }: { children: ReactNode }) {
     setNotification((prev) => ({ ...prev, open: false }));
   };
 
+  const clearOrder = () => {
+    setCompletedOrder(null);
+    setFailedOrder(null);
+  };
+
   const isProductReserved = useCallback(
     (productId: number): boolean => {
       return items.some(
@@ -150,6 +174,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     quantity = 1,
   ): Promise<boolean> => {
     setIsLoading(true);
+    resetIdempotencyKey();
     try {
       let reservation: Reservation;
 
@@ -162,15 +187,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
         });
       } catch (apiError: any) {
         const errorMsg =
-          apiError?.response?.data?.message ||
-          apiError?.message ||
-          "Erro ao reservar produto no servidor.";
+          apiError.message || "Erro ao reservar produto no servidor.";
 
         setNotification({
           open: true,
           message: errorMsg,
           severity: "error",
         });
+        return false;
       }
 
       const expiresAtString =
@@ -227,7 +251,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
       setNotification({
         open: true,
-        message: `"${product.name}" reservado no carrinho com sucesso!`,
+        message: `"${product.name}" adicionada no carrinho com sucesso!`,
         severity: "success",
       });
 
@@ -244,19 +268,13 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  /**
-   * Atualiza a quantidade de um item no carrinho:
-   * action:
-   * - "increase": adiciona quantity
-   * - "decrease": subtrai quantity
-   * - "set": define o valor exato quantity
-   */
   const updateItemQuantity = async (
     productId: number,
     quantity: number,
     action: CartAction = "set",
   ): Promise<boolean> => {
     setIsLoading(true);
+    resetIdempotencyKey();
     try {
       let reservation: Reservation;
 
@@ -353,6 +371,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   };
 
   const removeFromCart = async (reservationId: string) => {
+    resetIdempotencyKey();
     try {
       try {
         await cancelReservation(reservationId);
@@ -374,13 +393,72 @@ export function CartProvider({ children }: { children: ReactNode }) {
     } catch (err: any) {
       setNotification({
         open: true,
-        message: "Erro ao remover reserva.",
+        message: err.message || "Erro ao remover reserva.",
         severity: "error",
       });
     }
   };
 
+  const finalizeOrder = async (
+    options?: Omit<CheckoutOptions, "idempotencyKey">,
+  ): Promise<Order | null> => {
+    if (items.length === 0) {
+      setNotification({
+        open: true,
+        message: "Seu carrinho está vazio para finalizar o pedido.",
+        severity: "warning",
+      });
+      return null;
+    }
+
+    if (!idempotencyKeyRef.current) {
+      const newKey = generateIdempotencyKey();
+      idempotencyKeyRef.current = newKey;
+      setCurrentIdempotencyKey(newKey);
+    }
+
+    const idempotencyKey = idempotencyKeyRef.current;
+
+    setIsCheckingOut(true);
+    try {
+      const order = await checkoutOrder(clientId, {
+        idempotencyKey,
+        simulateErpError: options?.simulateErpError,
+        simulateErpDelayMs: options?.simulateErpDelayMs,
+      });
+
+      resetIdempotencyKey();
+      saveItems([]);
+      triggerCatalogRefresh();
+
+      setCompletedOrder(order);
+      closeCart();
+
+      setNotification({
+        open: true,
+        message: `Pedido #${order.id.slice(0, 8)} finalizado com sucesso! Total: R$ ${order.total.toFixed(2).replace(".", ",")}`,
+        severity: "success",
+      });
+
+      return order;
+    } catch (err: any) {
+      console.log(err);
+
+      const errorMsg =
+        err?.response?.data?.message ||
+        err?.message ||
+        "Não foi possível finalizar o pedido. Verifique se os itens ainda estão reservados.";
+
+      setFailedOrder({ message: errorMsg });
+
+      return null;
+    } finally {
+      setIsCheckingOut(false);
+    }
+  };
+
   const handleOrderExpired = async () => {
+    resetIdempotencyKey();
     saveItems([]);
     triggerCatalogRefresh();
 
@@ -414,15 +492,21 @@ export function CartProvider({ children }: { children: ReactNode }) {
         totalPrice,
         isCartOpen,
         isLoading,
+        isCheckingOut,
+        completedOrder,
+        failedOrder,
         catalogRefreshKey,
         orderExpiresAt,
+        currentIdempotencyKey,
         notification,
         openCart,
         closeCart,
         closeNotification,
+        clearOrder,
         addToCart,
         updateItemQuantity,
         removeFromCart,
+        finalizeOrder,
         handleOrderExpired,
         isProductReserved,
         triggerCatalogRefresh,

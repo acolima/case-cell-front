@@ -6,7 +6,7 @@ export interface Product {
   price: number;
   rating: number;
   reviews: number;
-  quantity: number;
+  quantity?: number;
   tag?: string;
   color: string;
 }
